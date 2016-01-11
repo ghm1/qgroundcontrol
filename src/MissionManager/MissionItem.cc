@@ -37,7 +37,6 @@ FactMetaData* MissionItem::_defaultParamMetaData =      NULL;
 FactMetaData* MissionItem::_frameMetaData =             NULL;
 FactMetaData* MissionItem::_latitudeMetaData =          NULL;
 FactMetaData* MissionItem::_longitudeMetaData =         NULL;
-FactMetaData* MissionItem::_supportedCommandMetaData =  NULL;
 
 struct EnumInfo_s {
     const char *    label;
@@ -108,7 +107,6 @@ MissionItem::MissionItem(QObject* parent)
     , _param7MetaData(FactMetaData::valueTypeDouble)
     , _syncingAltitudeRelativeToHomeAndFrame    (false)
     , _syncingHeadingDegreesAndParam4           (false)
-    , _syncingSupportedCommandAndCommand        (false)
     , _mavCmdInfoMap(qgcApp()->toolbox()->missionCommands()->commandInfoMap())
 {
     // Need a good command and frame before we start passing signals around
@@ -167,7 +165,6 @@ MissionItem::MissionItem(int             sequenceNumber,
     , _param7MetaData(FactMetaData::valueTypeDouble)
     , _syncingAltitudeRelativeToHomeAndFrame    (false)
     , _syncingHeadingDegreesAndParam4           (false)
-    , _syncingSupportedCommandAndCommand        (false)
     , _mavCmdInfoMap(qgcApp()->toolbox()->missionCommands()->commandInfoMap())
 {
     // Need a good command and frame before we start passing signals around
@@ -183,7 +180,6 @@ MissionItem::MissionItem(int             sequenceNumber,
     setAutoContinue(autoContinue);
 
     _syncFrameToAltitudeRelativeToHome();
-    _syncCommandToSupportedCommand(QVariant(this->command()));
 
     _param1Fact.setRawValue(param1);
     _param2Fact.setRawValue(param2);
@@ -223,7 +219,6 @@ MissionItem::MissionItem(const MissionItem& other, QObject* parent)
     , _param4MetaData(FactMetaData::valueTypeDouble)
     , _syncingAltitudeRelativeToHomeAndFrame    (false)
     , _syncingHeadingDegreesAndParam4           (false)
-    , _syncingSupportedCommandAndCommand        (false)
     , _mavCmdInfoMap(qgcApp()->toolbox()->missionCommands()->commandInfoMap())
 {
     // Need a good command and frame before we start passing signals around
@@ -254,7 +249,6 @@ const MissionItem& MissionItem::operator=(const MissionItem& other)
     setHomePositionValid(other._homePositionValid);
 
     _syncFrameToAltitudeRelativeToHome();
-    _syncCommandToSupportedCommand(QVariant(this->command()));
 
     _param1Fact.setRawValue(other._param1Fact.rawValue());
     _param2Fact.setRawValue(other._param2Fact.rawValue());
@@ -282,8 +276,6 @@ void MissionItem::_connectSignals(void)
     connect(this,           &MissionItem::sequenceNumberChanged,    this, &MissionItem::_setDirtyFromSignal);
 
     // Values from these facts must propogate back and forth between the real object storage
-    connect(&_supportedCommandFact,         &Fact::valueChanged,        this, &MissionItem::_syncSupportedCommandToCommand);
-    connect(&_commandFact,                  &Fact::valueChanged,        this, &MissionItem::_syncCommandToSupportedCommand);
     connect(&_altitudeRelativeToHomeFact,   &Fact::valueChanged,        this, &MissionItem::_syncAltitudeRelativeToHomeToFrame);
     connect(this,                           &MissionItem::frameChanged, this, &MissionItem::_syncFrameToAltitudeRelativeToHome);
 
@@ -317,7 +309,7 @@ void MissionItem::_setupMetaData(void)
 
     if (!_altitudeMetaData) {
         _altitudeMetaData = new FactMetaData(FactMetaData::valueTypeDouble);
-        _altitudeMetaData->setUnits("meters");
+        _altitudeMetaData->setRawUnits("meters");
         _altitudeMetaData->setDecimalPlaces(3);
 
         enumStrings.clear();
@@ -344,35 +336,17 @@ void MissionItem::_setupMetaData(void)
         _frameMetaData->setEnumInfo(enumStrings, enumValues);
 
         _latitudeMetaData = new FactMetaData(FactMetaData::valueTypeDouble);
-        _latitudeMetaData->setUnits("deg");
+        _latitudeMetaData->setRawUnits("deg");
         _latitudeMetaData->setDecimalPlaces(7);
 
         _longitudeMetaData = new FactMetaData(FactMetaData::valueTypeDouble);
-        _longitudeMetaData->setUnits("deg");
+        _longitudeMetaData->setRawUnits("deg");
         _longitudeMetaData->setDecimalPlaces(7);
 
-        enumStrings.clear();
-        enumValues.clear();
-        // FIXME: Hack hardcode to PX4
-        QList<MAV_CMD> supportedCommands = qgcApp()->toolbox()->firmwarePluginManager()->firmwarePluginForAutopilot(MAV_AUTOPILOT_PX4, MAV_TYPE_QUADROTOR)->supportedMissionCommands();
-        if (supportedCommands.count()) {
-            foreach (MAV_CMD command, supportedCommands) {
-                enumStrings.append(_mavCmdInfoMap[command]->friendlyName());
-                enumValues.append(QVariant(command));
-            }
-        } else {
-            foreach (const MavCmdInfo* mavCmdInfo, _mavCmdInfoMap) {
-                enumStrings.append(mavCmdInfo->friendlyName());
-                enumValues.append(QVariant(mavCmdInfo->command()));
-            }
-        }
-        _supportedCommandMetaData = new FactMetaData(FactMetaData::valueTypeUint32);
-        _supportedCommandMetaData->setEnumInfo(enumStrings, enumValues);
     }
 
     _commandFact.setMetaData(_commandMetaData);
     _frameFact.setMetaData(_frameMetaData);
-    _supportedCommandFact.setMetaData(_supportedCommandMetaData);
 }
 
 MissionItem::~MissionItem()
@@ -542,18 +516,14 @@ QString MissionItem::commandDescription(void) const
 
 void MissionItem::_clearParamMetaData(void)
 {
-    _param1MetaData.setUnits("");
+    _param1MetaData.setRawUnits("");
     _param1MetaData.setDecimalPlaces(FactMetaData::defaultDecimalPlaces);
-    _param1MetaData.setTranslators(FactMetaData::defaultTranslator, FactMetaData::defaultTranslator);
-    _param2MetaData.setUnits("");
+    _param2MetaData.setRawUnits("");
     _param2MetaData.setDecimalPlaces(FactMetaData::defaultDecimalPlaces);
-    _param2MetaData.setTranslators(FactMetaData::defaultTranslator, FactMetaData::defaultTranslator);
-    _param3MetaData.setUnits("");
+    _param3MetaData.setRawUnits("");
     _param3MetaData.setDecimalPlaces(FactMetaData::defaultDecimalPlaces);
-    _param3MetaData.setTranslators(FactMetaData::defaultTranslator, FactMetaData::defaultTranslator);
-    _param4MetaData.setUnits("");
+    _param4MetaData.setRawUnits("");
     _param4MetaData.setDecimalPlaces(FactMetaData::defaultDecimalPlaces);
-    _param4MetaData.setTranslators(FactMetaData::defaultTranslator, FactMetaData::defaultTranslator);
 }
 
 QmlObjectListModel* MissionItem::textFieldFacts(void)
@@ -601,12 +571,7 @@ QmlObjectListModel* MissionItem::textFieldFacts(void)
                 paramFact->_setName(paramInfo->label());
                 paramMetaData->setDecimalPlaces(paramInfo->decimalPlaces());
                 paramMetaData->setEnumInfo(paramInfo->enumStrings(), paramInfo->enumValues());
-                if (paramInfo->units() == MissionCommands::_degreesConvertUnits) {
-                    paramMetaData->setTranslators(_radiansToDegrees, _degreesToRadians);
-                    paramMetaData->setUnits(MissionCommands::_degreesUnits);
-                } else {
-                    paramMetaData->setUnits(paramInfo->units());
-                }
+                paramMetaData->setRawUnits(paramInfo->units());
                 paramFact->setMetaData(paramMetaData);
                 model->append(paramFact);
             }
@@ -660,12 +625,7 @@ QmlObjectListModel* MissionItem::comboboxFacts(void)
                 paramFact->_setName(paramInfo->label());
                 paramMetaData->setDecimalPlaces(paramInfo->decimalPlaces());
                 paramMetaData->setEnumInfo(paramInfo->enumStrings(), paramInfo->enumValues());
-                if (paramInfo->units() == MissionCommands::_degreesConvertUnits) {
-                    paramMetaData->setTranslators(_radiansToDegrees, _degreesToRadians);
-                    paramMetaData->setUnits(MissionCommands::_degreesUnits);
-                } else {
-                    paramMetaData->setUnits(paramInfo->units());
-                }
+                paramMetaData->setRawUnits(paramInfo->units());
                 paramFact->setMetaData(paramMetaData);
                 model->append(paramFact);
             }
@@ -787,24 +747,6 @@ void MissionItem::_syncFrameToAltitudeRelativeToHome(void)
     }
 }
 
-void MissionItem::_syncSupportedCommandToCommand(const QVariant& value)
-{
-    if (!_syncingSupportedCommandAndCommand) {
-        _syncingSupportedCommandAndCommand = true;
-        _commandFact.setRawValue(value.toInt());
-        _syncingSupportedCommandAndCommand = false;
-    }
-}
-
-void MissionItem::_syncCommandToSupportedCommand(const QVariant& value)
-{
-    if (!_syncingSupportedCommandAndCommand) {
-        _syncingSupportedCommandAndCommand = true;
-        _supportedCommandFact.setRawValue(value.toInt());
-        _syncingSupportedCommandAndCommand = false;
-    }
-}
-
 void MissionItem::setDefaultsForCommand(void)
 {
     // We set these global defaults first, then if there are param defaults they will get reset
@@ -846,16 +788,6 @@ QString MissionItem::commandName(void) const
     } else {
         return QString("Unknown: %1").arg(command());
     }
-}
-
-QVariant MissionItem::_degreesToRadians(const QVariant& degrees)
-{
-    return QVariant(degrees.toDouble() * (M_PI / 180.0));
-}
-
-QVariant MissionItem::_radiansToDegrees(const QVariant& radians)
-{
-    return QVariant(radians.toDouble() * (180 / M_PI));
 }
 
 void MissionItem::_sendFriendlyEditAllowedChanged(void)

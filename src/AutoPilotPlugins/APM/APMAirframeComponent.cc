@@ -25,13 +25,20 @@
 ///     @author Don Gagne <don@thegagnes.com>
 
 #include "APMAirframeComponent.h"
-#include "QGCQmlWidgetHolder.h"
+#include "ArduCopterFirmwarePlugin.h"
 
-APMAirframeComponent::APMAirframeComponent(Vehicle* vehicle, AutoPilotPlugin* autopilot, QObject* parent) :
-    APMComponent(vehicle, autopilot, parent),
-    _name(tr("Airframe"))
+APMAirframeComponent::APMAirframeComponent(Vehicle* vehicle, AutoPilotPlugin* autopilot, QObject* parent)
+    : APMComponent(vehicle, autopilot, parent)
+    , _requiresFrameSetup(false)
+    , _name("Airframe")
 {
-
+    if (qobject_cast<ArduCopterFirmwarePlugin*>(_vehicle->firmwarePlugin()) != NULL) {
+        _requiresFrameSetup = true;
+        MAV_TYPE vehicleType = vehicle->vehicleType();
+        if (vehicleType == MAV_TYPE_TRICOPTER || vehicleType == MAV_TYPE_HELICOPTER) {
+            _requiresFrameSetup = false;
+        }
+    }
 }
 
 QString APMAirframeComponent::name(void) const
@@ -52,37 +59,45 @@ QString APMAirframeComponent::iconResource(void) const
 
 bool APMAirframeComponent::requiresSetup(void) const
 {
-    return true;
+    return _requiresFrameSetup;
 }
 
 bool APMAirframeComponent::setupComplete(void) const
 {
-    // You'll need to figure out which parameters trigger setup complete
-#if 0
-    return _autopilot->getParameterFact(FactSystem::defaultComponentId, "SYS_AUTOSTART")->rawValue().toInt() != 0;
-#else
-    return true;
-#endif
+    if (_requiresFrameSetup) {
+        return _autopilot->getParameterFact(FactSystem::defaultComponentId, "FRAME")->rawValue().toInt() >= 0;
+    } else {
+        return true;
+    }
 }
 
 QStringList APMAirframeComponent::setupCompleteChangedTriggerList(void) const
 {
-    // You'll need to figure out which parameters trigger setup complete
-#if 0
-    return QStringList("SYS_AUTOSTART");
-#else
-    return QStringList();
-#endif
+    QStringList list;
+
+    if (_requiresFrameSetup) {
+        list << "FRAME";
+    }
+
+    return list;
 }
 
 QUrl APMAirframeComponent::setupSource(void) const
 {
-    return QUrl::fromUserInput("qrc:/qml/APMAirframeComponent.qml");
+    if (_requiresFrameSetup) {
+        return QUrl::fromUserInput("qrc:/qml/APMAirframeComponent.qml");
+    } else {
+        return QUrl();
+    }
 }
 
 QUrl APMAirframeComponent::summaryQmlSource(void) const
 {
-    return QUrl::fromUserInput("qrc:/qml/APMAirframeComponentSummary.qml");
+    if (_requiresFrameSetup) {
+        return QUrl::fromUserInput("qrc:/qml/APMAirframeComponentSummary.qml");
+    } else {
+        return QUrl();
+    }
 }
 
 QString APMAirframeComponent::prerequisiteSetup(void) const

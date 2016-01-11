@@ -176,7 +176,7 @@ const struct RadioConfigTest::ChannelSettings RadioConfigTest::_rgChannelSetting
 
     // Channels 1-4: Mapped to attitude control function
     { RadioComponentController::rcCalFunctionRoll,			_testMinValue, _testMaxValue, _testCenterValue, true },
-    { RadioComponentController::rcCalFunctionPitch,			_testMinValue, _testMaxValue, _testCenterValue, false },
+    { RadioComponentController::rcCalFunctionPitch,			_testMinValue, _testMaxValue, _testCenterValue, true },
     { RadioComponentController::rcCalFunctionYaw,			_testMinValue, _testMaxValue, _testCenterValue, true },
     { RadioComponentController::rcCalFunctionThrottle,		_testMinValue, _testMaxValue, _testMinValue,    false },
 
@@ -407,7 +407,7 @@ void RadioConfigTest::_fullCalibrationWorker(MAV_AUTOPILOT firmwareType)
                     QStringList switchList;
                     switchList << "RC_MAP_MODE_SW" << "RC_MAP_LOITER_SW" << "RC_MAP_RETURN_SW" << "RC_MAP_POSCTL_SW" << "RC_MAP_ACRO_SW";
 
-                    foreach (QString switchParam, switchList) {
+                    foreach (const QString &switchParam, switchList) {
                         Q_ASSERT(_autopilot->getParameterFact(FactSystem::defaultComponentId, switchParam)->rawValue().toInt() != channel + 1);
                     }
                 }

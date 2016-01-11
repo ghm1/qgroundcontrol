@@ -77,6 +77,7 @@
 #include "APM/ArduCopterFirmwarePlugin.h"
 #include "APM/ArduPlaneFirmwarePlugin.h"
 #include "APM/ArduRoverFirmwarePlugin.h"
+#include "APM/APMAirframeComponentController.h"
 #include "PX4/PX4FirmwarePlugin.h"
 #include "Vehicle.h"
 #include "MavlinkQmlSingleton.h"
@@ -94,6 +95,7 @@
 #include "FlightDisplayViewController.h"
 #include "VideoSurface.h"
 #include "VideoReceiver.h"
+#include "LogDownloadController.h"
 
 #ifndef __ios__
     #include "SerialLink.h"
@@ -116,18 +118,12 @@ QGCApplication* QGCApplication::_app = NULL;
 
 const char* QGCApplication::_deleteAllSettingsKey           = "DeleteAllSettingsNextBoot";
 const char* QGCApplication::_settingsVersionKey             = "SettingsVersion";
-const char* QGCApplication::_savedFilesLocationKey          = "SavedFilesLocation";
 const char* QGCApplication::_promptFlightDataSave           = "PromptFLightDataSave";
 const char* QGCApplication::_promptFlightDataSaveNotArmed   = "PromptFLightDataSaveNotArmed";
 const char* QGCApplication::_styleKey                       = "StyleIsDark";
 
-const char* QGCApplication::_defaultSavedFileDirectoryName      = "QGroundControl";
-const char* QGCApplication::_savedFileMavlinkLogDirectoryName   = "FlightData";
-const char* QGCApplication::_savedFileParameterDirectoryName    = "SavedParameters";
-
 const char* QGCApplication::_darkStyleFile          = ":/res/styles/style-dark.css";
 const char* QGCApplication::_lightStyleFile         = ":/res/styles/style-light.css";
-
 
 // Qml Singleton factories
 
@@ -144,7 +140,11 @@ static QObject* mavlinkQmlSingletonFactory(QQmlEngine*, QJSEngine*)
 
 static QObject* qgroundcontrolQmlGlobalSingletonFactory(QQmlEngine*, QJSEngine*)
 {
-    return new QGroundControlQmlGlobal(qgcApp()->toolbox());
+    // We create this object as a QGCTool even though it isn't int he toolbox
+    QGroundControlQmlGlobal* qmlGlobal = new QGroundControlQmlGlobal(qgcApp());
+    qmlGlobal->setToolbox(qgcApp()->toolbox());
+
+    return qmlGlobal;
 }
 
 /**
@@ -221,7 +221,7 @@ QGCApplication::QGCApplication(int &argc, char* argv[], bool unitTesting)
                 filterRules += ".debug=false\n";
             }
         } else {
-            foreach(QString rule, logList) {
+            foreach(const QString &rule, logList) {
                 filterRules += rule;
                 filterRules += ".debug=true\n";
             }
@@ -256,7 +256,7 @@ QGCApplication::QGCApplication(int &argc, char* argv[], bool unitTesting)
                     QTextStream out(&loggingFile);
                     out << "[Rules]\n";
                     out << "*Log.debug=false\n";
-                    foreach(QString category, QGCLoggingCategoryRegister::instance()->registeredCategories()) {
+                    foreach(const QString &category, QGCLoggingCategoryRegister::instance()->registeredCategories()) {
                         out << category << ".debug=false\n";
                     }
                 } else {
@@ -381,6 +381,7 @@ void QGCApplication::_initCommon(void)
     qmlRegisterType<ParameterEditorController>          ("QGroundControl.Controllers", 1, 0, "ParameterEditorController");
     qmlRegisterType<APMFlightModesComponentController>  ("QGroundControl.Controllers", 1, 0, "APMFlightModesComponentController");
     qmlRegisterType<FlightModesComponentController>     ("QGroundControl.Controllers", 1, 0, "FlightModesComponentController");
+    qmlRegisterType<APMAirframeComponentController>     ("QGroundControl.Controllers", 1, 0, "APMAirframeComponentController");
     qmlRegisterType<AirframeComponentController>        ("QGroundControl.Controllers", 1, 0, "AirframeComponentController");
     qmlRegisterType<APMSensorsComponentController>      ("QGroundControl.Controllers", 1, 0, "APMSensorsComponentController");
     qmlRegisterType<SensorsComponentController>         ("QGroundControl.Controllers", 1, 0, "SensorsComponentController");
@@ -396,6 +397,7 @@ void QGCApplication::_initCommon(void)
     qmlRegisterType<CustomCommandWidgetController>  ("QGroundControl.Controllers", 1, 0, "CustomCommandWidgetController");
     qmlRegisterType<FirmwareUpgradeController>      ("QGroundControl.Controllers", 1, 0, "FirmwareUpgradeController");
     qmlRegisterType<JoystickConfigController>       ("QGroundControl.Controllers", 1, 0, "JoystickConfigController");
+    qmlRegisterType<LogDownloadController>          ("QGroundControl.Controllers", 1, 0, "LogDownloadController");
 #endif
 
     // Register Qml Singletons
@@ -423,40 +425,6 @@ void QGCApplication::_initCommon(void)
                     "Your saved settings have been reset to defaults.");
     }
 
-    // Load saved files location and validate
-
-    QString savedFilesLocation;
-    if (settings.contains(_savedFilesLocationKey)) {
-        savedFilesLocation = settings.value(_savedFilesLocationKey).toString();
-        if (!validatePossibleSavedFilesLocation(savedFilesLocation)) {
-            savedFilesLocation.clear();
-        }
-    }
-
-    if (savedFilesLocation.isEmpty()) {
-        // No location set (or invalid). Create a default one in Documents standard location.
-
-        QString documentsLocation = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-
-        QDir documentsDir(documentsLocation);
-        if (!documentsDir.exists()) {
-            qWarning() << "Documents directory doesn't exist" << documentsDir.absolutePath();
-        }
-
-        bool pathCreated = documentsDir.mkpath(_defaultSavedFileDirectoryName);
-        Q_UNUSED(pathCreated);
-        Q_ASSERT(pathCreated);
-        savedFilesLocation = documentsDir.filePath(_defaultSavedFileDirectoryName);
-    }
-
-    if (!savedFilesLocation.isEmpty()) {
-        if (!validatePossibleSavedFilesLocation(savedFilesLocation)) {
-            savedFilesLocation.clear();
-        }
-    }
-    qDebug() << "Saved files location" << savedFilesLocation;
-    settings.setValue(_savedFilesLocationKey, savedFilesLocation);
-
     settings.sync();
 }
 
@@ -480,14 +448,6 @@ bool QGCApplication::_initForNormalAppBoot(void)
     // Start the user interface
     MainWindow* mainWindow = MainWindow::_create();
     Q_CHECK_PTR(mainWindow);
-
-    // If we made it this far and we still don't have a location. Either the specfied location was invalid
-    // or we coudn't create a default location. Either way, we need to let the user know and prompt for a new
-    /// settings.
-    QString savedFilesLocation = settings.value(_savedFilesLocationKey).toString();
-    if (savedFilesLocation.isEmpty()) {
-        showMessage("The location to save files to is invalid, or cannot be written to. Please provide a new one.");
-    }
 
     // Now that main window is up check for lost log files
     connect(this, &QGCApplication::checkForLostLogFiles, toolbox()->mavlinkProtocol(), &MAVLinkProtocol::checkForLostLogFiles);
@@ -515,70 +475,6 @@ void QGCApplication::clearDeleteAllSettingsNextBoot(void)
 {
     QSettings settings;
     settings.remove(_deleteAllSettingsKey);
-}
-
-void QGCApplication::setSavedFilesLocation(QString& location)
-{
-    QSettings settings;
-    settings.setValue(_savedFilesLocationKey, location);
-}
-
-bool QGCApplication::validatePossibleSavedFilesLocation(QString& location)
-{
-    // Make sure we can write to the directory
-
-    QString filename = QDir(location).filePath("QGCTempXXXXXXXX.tmp");
-    QGCTemporaryFile tempFile(filename);
-    if (!tempFile.open()) {
-        return false;
-    }
-
-    tempFile.remove();
-
-    return true;
-}
-
-QString QGCApplication::savedFilesLocation(void)
-{
-    QSettings settings;
-
-    return settings.value(_savedFilesLocationKey).toString();
-}
-
-QString QGCApplication::savedParameterFilesLocation(void)
-{
-    QString location;
-    QDir    parentDir(savedFilesLocation());
-
-    location = parentDir.filePath(_savedFileParameterDirectoryName);
-
-    if (!QDir(location).exists()) {
-        // If directory doesn't exist, try to create it
-        if (!parentDir.mkpath(_savedFileParameterDirectoryName)) {
-            // Return an error
-            location.clear();
-        }
-    }
-
-    return location;
-}
-
-QString QGCApplication::mavlinkLogFilesLocation(void)
-{
-    QString location;
-    QDir    parentDir(savedFilesLocation());
-
-    location = parentDir.filePath(_savedFileMavlinkLogDirectoryName);
-
-    if (!QDir(location).exists()) {
-        // If directory doesn't exist, try to create it
-        if (!parentDir.mkpath(_savedFileMavlinkLogDirectoryName)) {
-            // Return an error
-            location.clear();
-        }
-    }
-
-    return location;
 }
 
 bool QGCApplication::promptFlightDataSave(void)
@@ -649,7 +545,7 @@ void QGCApplication::saveTempFlightDataLogOnMainThread(QString tempLogfile)
         QString saveFilename = QGCFileDialog::getSaveFileName(
             MainWindow::instance(),
             tr("Save Flight Data Log"),
-            qgcApp()->mavlinkLogFilesLocation(),
+            QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
             tr("Flight Data Log Files (*.mavlink)"),
             "mavlink");
 
@@ -731,7 +627,7 @@ void QGCApplication::_missingParamsDisplay(void)
     Q_ASSERT(_missingParams.count());
 
     QString params;
-    foreach (QString name, _missingParams) {
+    foreach (const QString &name, _missingParams) {
         if (params.isEmpty()) {
             params += name;
         } else {

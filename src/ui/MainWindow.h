@@ -116,18 +116,6 @@ public slots:
 
 protected slots:
     /**
-     * @brief Unchecks the normalActionItem.
-     * Used as a triggered() callback by the fullScreenAction to make sure only one of it or the
-     * normalAction are checked at a time, as they're mutually exclusive.
-     */
-    void fullScreenActionItemCallback(bool);
-    /**
-     * @brief Unchecks the fullScreenActionItem.
-     * Used as a triggered() callback by the normalAction to make sure only one of it or the
-     * fullScreenAction are checked at a time, as they're mutually exclusive.
-     */
-    void normalActionItemCallback(bool);
-    /**
      * @brief Enable/Disable Status Bar
      */
     void showStatusBarCallback(bool checked);
@@ -233,7 +221,7 @@ private:
     void _loadCurrentViewState(void);
 
 #ifndef __mobile__
-    void _createInnerDockWidget(const QString& widgetName);
+    bool _createInnerDockWidget(const QString& widgetName);
     void _buildCommonWidgets(void);
     void _hideAllDockWidgets(void);
     void _showDockWidget(const QString &name, bool show);

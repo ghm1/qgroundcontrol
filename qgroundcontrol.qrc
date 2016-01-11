@@ -11,6 +11,7 @@
         <file alias="APMAirframeComponent.qml">src/AutoPilotPlugins/APM/APMAirframeComponent.qml</file>
         <file alias="APMAirframeComponentSummary.qml">src/AutoPilotPlugins/APM/APMAirframeComponentSummary.qml</file>
         <file alias="CustomCommandWidget.qml">src/ViewWidgets/CustomCommandWidget.qml</file>
+        <file alias="LogDownload.qml">src/ViewWidgets/LogDownload.qml</file>
         <file alias="FirmwareUpgrade.qml">src/VehicleSetup/FirmwareUpgrade.qml</file>
         <file alias="FlightDisplayView.qml">src/FlightDisplay/FlightDisplayView.qml</file>
         <file alias="FlightModesComponent.qml">src/AutoPilotPlugins/PX4/FlightModesComponent.qml</file>
@@ -75,6 +76,8 @@
         <file alias="QGroundControl/Controls/VehicleRotationCal.qml">src/QmlControls/VehicleRotationCal.qml</file>
         <file alias="QGroundControl/Controls/VehicleSummaryRow.qml">src/QmlControls/VehicleSummaryRow.qml</file>
         <file alias="QGroundControl/Controls/ViewWidget.qml">src/ViewWidgets/ViewWidget.qml</file>
+        <file alias="QGroundControl/Controls/FactSliderPanel.qml">src/QmlControls/FactSliderPanel.qml</file>
+        <file alias="QGroundControl/FactControls/FactBitmask.qml">src/FactSystem/FactControls/FactBitmask.qml</file>
         <file alias="QGroundControl/FactControls/FactCheckBox.qml">src/FactSystem/FactControls/FactCheckBox.qml</file>
         <file alias="QGroundControl/FactControls/FactComboBox.qml">src/FactSystem/FactControls/FactComboBox.qml</file>
         <file alias="QGroundControl/FactControls/FactLabel.qml">src/FactSystem/FactControls/FactLabel.qml</file>
@@ -105,7 +108,13 @@
         <file alias="QmlTest.qml">src/QmlControls/QmlTest.qml</file>
         <file alias="RadioComponent.qml">src/AutoPilotPlugins/Common/RadioComponent.qml</file>
         <file alias="PX4RadioComponentSummary.qml">src/AutoPilotPlugins/PX4/PX4RadioComponentSummary.qml</file>
+        <file alias="PX4TuningComponentCopter.qml">src/AutoPilotPlugins/PX4/PX4TuningComponentCopter.qml</file>
+        <file alias="PX4TuningComponentPlane.qml">src/AutoPilotPlugins/PX4/PX4TuningComponentPlane.qml</file>
         <file alias="APMNotSupported.qml">src/AutoPilotPlugins/APM/APMNotSupported.qml</file>
+        <file alias="APMCameraComponent.qml">src/AutoPilotPlugins/APM/APMCameraComponent.qml</file>
+        <file alias="APMCameraComponentSummary.qml">src/AutoPilotPlugins/APM/APMCameraComponentSummary.qml</file>
+        <file alias="APMPowerComponent.qml">src/AutoPilotPlugins/APM/APMPowerComponent.qml</file>
+        <file alias="APMPowerComponentSummary.qml">src/AutoPilotPlugins/APM/APMPowerComponentSummary.qml</file>
         <file alias="APMRadioComponentSummary.qml">src/AutoPilotPlugins/APM/APMRadioComponentSummary.qml</file>
         <file alias="APMSafetyComponentCopter.qml">src/AutoPilotPlugins/APM/APMSafetyComponentCopter.qml</file>
         <file alias="APMSafetyComponentPlane.qml">src/AutoPilotPlugins/APM/APMSafetyComponentPlane.qml</file>
@@ -114,8 +123,6 @@
         <file alias="APMSafetyComponentSummaryPlane.qml">src/AutoPilotPlugins/APM/APMSafetyComponentSummaryPlane.qml</file>
         <file alias="APMSafetyComponentSummaryRover.qml">src/AutoPilotPlugins/APM/APMSafetyComponentSummaryRover.qml</file>
         <file alias="APMTuningComponentCopter.qml">src/AutoPilotPlugins/APM/APMTuningComponentCopter.qml</file>
-        <file alias="APMTuningComponentPlane.qml">src/AutoPilotPlugins/APM/APMTuningComponentPlane.qml</file>
-        <file alias="APMTuningComponentRover.qml">src/AutoPilotPlugins/APM/APMTuningComponentRover.qml</file>
         <file alias="SafetyComponent.qml">src/AutoPilotPlugins/PX4/SafetyComponent.qml</file>
         <file alias="SafetyComponentSummary.qml">src/AutoPilotPlugins/PX4/SafetyComponentSummary.qml</file>
         <file alias="SensorsComponent.qml">src/AutoPilotPlugins/PX4/SensorsComponent.qml</file>

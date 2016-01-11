@@ -22,6 +22,10 @@ This file is part of the QGROUNDCONTROL project
 
 #include "MissionCommands.h"
 #include "FactMetaData.h"
+#include "Vehicle.h"
+#include "FirmwarePluginManager.h"
+#include "QGCApplication.h"
+#include "QGroundControlQmlGlobal.h"
 
 #include <QStringList>
 #include <QJsonDocument>
@@ -54,13 +58,17 @@ const QString MissionCommands::_specifiesCoordinateJsonKey  (QStringLiteral("spe
 const QString MissionCommands::_unitsJsonKey                (QStringLiteral("units"));
 const QString MissionCommands::_versionJsonKey              (QStringLiteral("version"));
 
-const QString MissionCommands::_degreesConvertUnits         (QStringLiteral("degreesConvert"));
-const QString MissionCommands::_degreesUnits                (QStringLiteral("degrees"));
-
 MissionCommands::MissionCommands(QGCApplication* app)
     : QGCTool(app)
 {
+
+}
+
+void MissionCommands::setToolbox(QGCToolbox* toolbox)
+{
+    QGCTool::setToolbox(toolbox);
     _loadMavCmdInfoJson();
+    _createFirmwareSpecificLists();
 }
 
 bool MissionCommands::_validateKeyTypes(QJsonObject& jsonObject, const QStringList& keys, const QList<QJsonValue::Type>& types)
@@ -119,7 +127,7 @@ void MissionCommands::_loadMavCmdInfoJson(void)
         // Make sure we have the required keys
         QStringList requiredKeys;
         requiredKeys << _idJsonKey << _rawNameJsonKey;
-        foreach (QString key, requiredKeys) {
+        foreach (const QString &key, requiredKeys) {
             if (!jsonObject.contains(key)) {
                 qWarning() << "Mission required key" << key;
                 return;
@@ -165,7 +173,6 @@ void MissionCommands::_loadMavCmdInfoJson(void)
         }
 
         _mavCmdInfoMap[mavCmdInfo->_command] = mavCmdInfo;
-        _commandList.append(mavCmdInfo);
 
         // Read params
 
@@ -201,7 +208,7 @@ void MissionCommands::_loadMavCmdInfoJson(void)
                 paramInfo->_units =         paramObject.value(_unitsJsonKey).toString();
 
                 QStringList enumValues = paramObject.value(_enumValuesJsonKey).toString().split(",", QString::SkipEmptyParts);
-                foreach (QString enumValue, enumValues) {
+                foreach (const QString &enumValue, enumValues) {
                     bool    convertOk;
                     double  value = enumValue.toDouble(&convertOk);
 
@@ -234,16 +241,13 @@ void MissionCommands::_loadMavCmdInfoJson(void)
         if (mavCmdInfo->_command != MAV_CMD_NAV_LAST) {
             // Don't add fake home postion command to categories
 
-            if (!_categories.contains(mavCmdInfo->category()) && mavCmdInfo->friendlyEdit()) {
-                // Only friendly edit commands go in category list
-                qCDebug(MissionCommandsLog) << "Adding new category";
-                _categories.append(mavCmdInfo->category());
-                _categoryToMavCmdInfoListMap[mavCmdInfo->category()] = new QmlObjectListModel(this);
-            }
-
             if (mavCmdInfo->friendlyEdit()) {
-                // Only friendly edit commands go in category list
-                _categoryToMavCmdInfoListMap[mavCmdInfo->category()]->append(mavCmdInfo);
+                // Only friendly edit commands go in category list. We use MAV_AUTOPILOT_GENERIC key to store full list.
+                if (!_categoryToMavCmdInfoListMap.contains(MAV_AUTOPILOT_GENERIC) || !_categoryToMavCmdInfoListMap[MAV_AUTOPILOT_GENERIC].contains(mavCmdInfo->category())) {
+                    qCDebug(MissionCommandsLog) << "Adding new category";
+                    _categoryToMavCmdInfoListMap[MAV_AUTOPILOT_GENERIC][mavCmdInfo->category()] = new QmlObjectListModel(this);
+                }
+                _categoryToMavCmdInfoListMap[MAV_AUTOPILOT_GENERIC][mavCmdInfo->category()]->append(mavCmdInfo);
             }
         }
 
@@ -255,6 +259,67 @@ void MissionCommands::_loadMavCmdInfoJson(void)
             if (mavCmdInfo->rawName() ==  mavCmdInfo->friendlyName()) {
                 qWarning() << "Missing friendly name" << mavCmdInfo->rawName() << mavCmdInfo->friendlyName();
                 return;
+            }
+        }
+    }
+}
+
+MAV_AUTOPILOT MissionCommands::_firmwareTypeFromVehicle(Vehicle* vehicle) const
+{
+    if (vehicle) {
+        return vehicle->firmwareType();
+    } else {
+        QSettings settings;
+
+        // FIXME: Hack duplicated code from QGroundControlQmlGlobal. Had to do this for now since
+        // QGroundControlQmlGlobal is not available from C++ side.
+
+        return (MAV_AUTOPILOT)settings.value("OfflineEditingFirmwareType", MAV_AUTOPILOT_ARDUPILOTMEGA).toInt();
+    }
+}
+
+QString MissionCommands::categoryFromCommand(MavlinkQmlSingleton::Qml_MAV_CMD command) const
+{
+    return _mavCmdInfoMap[(MAV_CMD)command]->category();
+}
+
+QVariant MissionCommands::getCommandsForCategory(Vehicle* vehicle, const QString& category) const
+{
+    return QVariant::fromValue(_categoryToMavCmdInfoListMap[_firmwareTypeFromVehicle(vehicle)][category]);
+}
+
+const QStringList MissionCommands::categories(Vehicle* vehicle) const
+{
+    QStringList list;
+
+    foreach (const QString &category, _categoryToMavCmdInfoListMap[_firmwareTypeFromVehicle(vehicle)].keys()) {
+        list << category;
+    }
+
+    return list;
+}
+
+void MissionCommands::_createFirmwareSpecificLists(void)
+{
+    QList<MAV_AUTOPILOT>    firmwareList;
+
+    firmwareList << MAV_AUTOPILOT_PX4 << MAV_AUTOPILOT_ARDUPILOTMEGA;
+
+    foreach (MAV_AUTOPILOT firmwareType, firmwareList) {
+        FirmwarePlugin* plugin = _toolbox->firmwarePluginManager()->firmwarePluginForAutopilot(firmwareType, MAV_TYPE_QUADROTOR);
+
+        QList<MAV_CMD> cmdList = plugin->supportedMissionCommands();
+        foreach (MAV_CMD command, cmdList) {
+            MavCmdInfo* mavCmdInfo = _mavCmdInfoMap[command];
+
+            if (mavCmdInfo->friendlyEdit()) {
+                if (!_categoryToMavCmdInfoListMap.contains(firmwareType) || !_categoryToMavCmdInfoListMap[firmwareType].contains(mavCmdInfo->category())) {
+                    qCDebug(MissionCommandsLog) << "Adding new category" << firmwareType;
+                    _categoryToMavCmdInfoListMap[firmwareType][mavCmdInfo->category()] = new QmlObjectListModel(this);
+                }
+                _categoryToMavCmdInfoListMap[firmwareType][mavCmdInfo->category()]->append(mavCmdInfo);
+            } else {
+                qWarning() << "Attempt to add non friendly edit supported command";
             }
         }
     }

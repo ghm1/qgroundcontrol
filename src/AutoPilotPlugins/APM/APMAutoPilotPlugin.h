@@ -26,12 +26,16 @@
 
 #include "AutoPilotPlugin.h"
 #include "Vehicle.h"
-#include "APMAirframeComponent.h"
-#include "APMFlightModesComponent.h"
-#include "APMRadioComponent.h"
-#include "APMSafetyComponent.h"
-#include "APMSensorsComponent.h"
-#include "APMTuningComponent.h"
+
+class APMAirframeComponent;
+class APMAirframeLoader;
+class APMFlightModesComponent;
+class APMRadioComponent;
+class APMTuningComponent;
+class APMSafetyComponent;
+class APMSensorsComponent;
+class APMPowerComponent;
+class APMCameraComponent;
 
 /// This is the APM specific implementation of the AutoPilot class.
 class APMAutoPilotPlugin : public AutoPilotPlugin
@@ -46,7 +50,9 @@ public:
     virtual const QVariantList& vehicleComponents(void);
 
     APMAirframeComponent*       airframeComponent   (void) { return _airframeComponent; }
+    APMCameraComponent*         cameraComponent     (void) { return _cameraComponent; }
     APMFlightModesComponent*    flightModesComponent(void) { return _flightModesComponent; }
+    APMPowerComponent*          powerComponent      (void) { return _powerComponent; }
     APMRadioComponent*          radioComponent      (void) { return _radioComponent; }
     APMSafetyComponent*         safetyComponent     (void) { return _safetyComponent; }
     APMSensorsComponent*        sensorsComponent    (void) { return _sensorsComponent; }
@@ -61,11 +67,14 @@ private:
     QVariantList            _components;
 
     APMAirframeComponent*       _airframeComponent;
+    APMCameraComponent*         _cameraComponent;
     APMFlightModesComponent*    _flightModesComponent;
+    APMPowerComponent*          _powerComponent;
     APMRadioComponent*          _radioComponent;
     APMSafetyComponent*         _safetyComponent;
     APMSensorsComponent*        _sensorsComponent;
     APMTuningComponent*         _tuningComponent;
+    APMAirframeLoader*          _airframeFacts;
 };
 
 #endif

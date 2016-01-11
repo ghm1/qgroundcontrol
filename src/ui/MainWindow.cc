@@ -65,6 +65,7 @@ This file is part of the QGROUNDCONTROL project
 #include "QGCDockWidget.h"
 #include "UASInfoWidget.h"
 #include "HILDockWidget.h"
+#include "LogDownload.h"
 #endif
 
 #ifndef __ios__
@@ -86,7 +87,8 @@ enum DockWidgetTypes {
     STATUS_DETAILS,
     INFO_VIEW,
     HIL_CONFIG,
-    ANALYZE
+    ANALYZE,
+    LOG_DOWNLOAD
 };
 
 static const char *rgDockWidgetNames[] = {
@@ -96,7 +98,8 @@ static const char *rgDockWidgetNames[] = {
     "Status Details",
     "Info View",
     "HIL Config",
-    "Analyze"
+    "Analyze",
+    "Log Download"
 };
 
 #define ARRAY_SIZE(ARRAY) (sizeof(ARRAY) / sizeof(ARRAY[0]))
@@ -236,14 +239,6 @@ MainWindow::MainWindow()
             move((scrSize.width() - w) / 2, (scrSize.height() - h) / 2);
         }
     }
-
-    // Make sure the proper fullscreen/normal menu item is checked properly.
-    _ui.actionFullscreen->setChecked(isFullScreen());
-    _ui.actionNormal->setChecked(!isFullScreen());
-
-    // And that they will stay checked properly after user input
-    connect(_ui.actionFullscreen, &QAction::triggered, this, &MainWindow::fullScreenActionItemCallback);
-    connect(_ui.actionNormal,     &QAction::triggered, this, &MainWindow::normalActionItemCallback);
 #endif
 
     connect(_ui.actionStatusBar,  &QAction::triggered, this, &MainWindow::showStatusBarCallback);
@@ -253,12 +248,10 @@ MainWindow::MainWindow()
     _ui.actionSetup->setShortcut(QApplication::translate("MainWindow", "Meta+1", 0));
     _ui.actionPlan->setShortcut(QApplication::translate("MainWindow", "Meta+2", 0));
     _ui.actionFlight->setShortcut(QApplication::translate("MainWindow", "Meta+3", 0));
-    _ui.actionFullscreen->setShortcut(QApplication::translate("MainWindow", "Meta+Return", 0));
 #else
     _ui.actionSetup->setShortcut(QApplication::translate("MainWindow", "Ctrl+1", 0));
     _ui.actionPlan->setShortcut(QApplication::translate("MainWindow", "Ctrl+2", 0));
     _ui.actionFlight->setShortcut(QApplication::translate("MainWindow", "Ctrl+3", 0));
-    _ui.actionFullscreen->setShortcut(QApplication::translate("MainWindow", "Ctrl+Return", 0));
 #endif
 
     _ui.actionFlight->setChecked(true);
@@ -339,53 +332,59 @@ void MainWindow::_showDockWidget(const QString& name, bool show)
 {
     // Create the inner widget if we need to
     if (!_mapName2DockWidget.contains(name)) {
-        _createInnerDockWidget(name);
+        if(!_createInnerDockWidget(name)) {
+            qWarning() << "Trying to load non existing widget:" << name;
+            return;
+        }
     }
-
     Q_ASSERT(_mapName2DockWidget.contains(name));
     QGCDockWidget* dockWidget = _mapName2DockWidget[name];
     Q_ASSERT(dockWidget);
-
     dockWidget->setVisible(show);
-
     Q_ASSERT(_mapName2Action.contains(name));
     _mapName2Action[name]->setChecked(show);
 }
 
 /// Creates the specified inner dock widget and adds to the QDockWidget
-void MainWindow::_createInnerDockWidget(const QString& widgetName)
+bool MainWindow::_createInnerDockWidget(const QString& widgetName)
 {
     QGCDockWidget* widget = NULL;
     QAction *action = _mapName2Action[widgetName];
-
-    switch(action->data().toInt()) {
-        case MAVLINK_INSPECTOR:
-            widget = new QGCMAVLinkInspector(widgetName, action, qgcApp()->toolbox()->mavlinkProtocol(),this);
-            break;
-        case CUSTOM_COMMAND:
-            widget = new CustomCommandWidget(widgetName, action, this);
-            break;
-        case ONBOARD_FILES:
-            widget = new QGCUASFileViewMulti(widgetName, action, this);
-            break;
-        case STATUS_DETAILS:
-            widget = new UASInfoWidget(widgetName, action, this);
-            break;
-        case HIL_CONFIG:
-            widget = new HILDockWidget(widgetName, action, this);
-            break;
-        case ANALYZE:
-            widget = new Linecharts(widgetName, action, mavlinkDecoder, this);
-            break;
-        case INFO_VIEW:
-            widget= new QGCTabbedInfoView(widgetName, action, this);
-            break;
+    if(action) {
+        switch(action->data().toInt()) {
+            case MAVLINK_INSPECTOR:
+                widget = new QGCMAVLinkInspector(widgetName, action, qgcApp()->toolbox()->mavlinkProtocol(),this);
+                break;
+            case CUSTOM_COMMAND:
+                widget = new CustomCommandWidget(widgetName, action, this);
+                break;
+            case ONBOARD_FILES:
+                widget = new QGCUASFileViewMulti(widgetName, action, this);
+                break;
+            case LOG_DOWNLOAD:
+                widget = new LogDownload(widgetName, action, this);
+                break;
+            case STATUS_DETAILS:
+                widget = new UASInfoWidget(widgetName, action, this);
+                break;
+            case HIL_CONFIG:
+                widget = new HILDockWidget(widgetName, action, this);
+                break;
+            case ANALYZE:
+                widget = new Linecharts(widgetName, action, mavlinkDecoder, this);
+                break;
+            case INFO_VIEW:
+                widget= new QGCTabbedInfoView(widgetName, action, this);
+                break;
+        }
+        if(action->data().toInt() == INFO_VIEW) {
+            qobject_cast<QGCTabbedInfoView*>(widget)->addSource(mavlinkDecoder);
+        }
+        if(widget) {
+            _mapName2DockWidget[widgetName] = widget;
+        }
     }
-
-    if(action->data().toInt() == INFO_VIEW) {
-        qobject_cast<QGCTabbedInfoView*>(widget)->addSource(mavlinkDecoder);
-    }
-    _mapName2DockWidget[widgetName] = widget;
+    return widget != NULL;
 }
 
 void MainWindow::_hideAllDockWidgets(void)
@@ -402,20 +401,6 @@ void MainWindow::_showDockWidgetAction(bool show)
     _showDockWidget(rgDockWidgetNames[action->data().toInt()], show);
 }
 #endif
-
-void MainWindow::fullScreenActionItemCallback(bool)
-{
-    if (!_ui.actionFullscreen->isChecked())
-        _ui.actionFullscreen->setChecked(true);
-    _ui.actionNormal->setChecked(false);
-}
-
-void MainWindow::normalActionItemCallback(bool)
-{
-    if (!_ui.actionNormal->isChecked())
-        _ui.actionNormal->setChecked(true);
-    _ui.actionFullscreen->setChecked(false);
-}
 
 void MainWindow::showStatusBarCallback(bool checked)
 {

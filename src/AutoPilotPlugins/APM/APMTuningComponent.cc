@@ -23,6 +23,7 @@
 
 #include "APMTuningComponent.h"
 #include "APMAutoPilotPlugin.h"
+#include "APMAirframeComponent.h"
 
 APMTuningComponent::APMTuningComponent(Vehicle* vehicle, AutoPilotPlugin* autopilot, QObject* parent)
     : APMComponent(vehicle, autopilot, parent)
@@ -42,7 +43,7 @@ QString APMTuningComponent::description(void) const
 
 QString APMTuningComponent::iconResource(void) const
 {
-    return "/qmlimages/subMenuButtonImage.png";
+    return "/qmlimages/TuningComponentIcon.png";
 }
 
 bool APMTuningComponent::requiresSetup(void) const
@@ -65,9 +66,6 @@ QUrl APMTuningComponent::setupSource(void) const
     QString qmlFile;
 
     switch (_vehicle->vehicleType()) {
-        case MAV_TYPE_FIXED_WING:
-            qmlFile = "qrc:/qml/APMTuningComponentPlane.qml";
-            break;
         case MAV_TYPE_QUADROTOR:
         case MAV_TYPE_COAXIAL:
         case MAV_TYPE_HELICOPTER:
@@ -76,11 +74,8 @@ QUrl APMTuningComponent::setupSource(void) const
         case MAV_TYPE_TRICOPTER:
             qmlFile = "qrc:/qml/APMTuningComponentCopter.qml";
             break;
-        case MAV_TYPE_GROUND_ROVER:
-            qmlFile = "qrc:/qml/APMTuningComponentRover.qml";
-            break;
         default:
-            qmlFile = "qrc:/qml/APMNotSupported.qml";
+            // No tuning panel
             break;
     }
 

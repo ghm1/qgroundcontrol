@@ -35,6 +35,8 @@ import QGroundControl.FactControls  1.0
 import QGroundControl.ScreenTools   1.0
 
 QGCViewDialog {
+    id: root
+
     property Fact   fact
     property bool   validate:       false
     property string validateValue
@@ -42,14 +44,19 @@ QGCViewDialog {
     ParameterEditorController { id: controller; factPanel: parent }
 
     function accept() {
-        var errorString = fact.validate(valueField.text, forceSave.checked)
-        if (errorString == "") {
-            fact.value = valueField.text
-            fact.valueChanged(fact.value)
+        if (factCombo.visible) {
+            fact.enumIndex = factCombo.currentIndex
             hideDialog()
         } else {
-            validationError.text = errorString
-            forceSave.visible = true
+            var errorString = fact.validate(valueField.text, forceSave.checked)
+            if (errorString == "") {
+                fact.value = valueField.text
+                fact.valueChanged(fact.value)
+                hideDialog()
+            } else {
+                validationError.text = errorString
+                forceSave.visible = true
+            }
         }
     }
 
@@ -58,7 +65,6 @@ QGCViewDialog {
             validationError.text = fact.validate(validateValue, false /* convertOnly */)
             forceSave.visible = true
         }
-        // This was causing problems where it would never give up focus even when hidden!
         //valueField.forceActiveFocus()
     }
 
@@ -81,18 +87,26 @@ QGCViewDialog {
         }
 
         QGCTextField {
-            id:     valueField
-            text:   validate ? validateValue : fact.valueString
-            focus:  true
+            id:         valueField
+            text:       validate ? validateValue : fact.valueString
+            visible:    fact.enumStrings.length == 0 || validate
+            //focus:  true
 
             // At this point all Facts are numeric
             inputMethodHints:   Qt.ImhFormattedNumbersOnly
+        }
 
-            onAccepted: accept()
+        QGCComboBox {
+            id:             factCombo
+            width:          valueField.width
+            visible:        fact.enumStrings.length != 0 && !validate
+            model:          fact.enumStrings
 
-            Keys.onReleased: {
-                if (event.key == Qt.Key_Escape) {
-                    reject()
+            Component.onCompleted: {
+                // We can't bind directly to fact.enumIndex since that would add an unknown value
+                // if there are no enum strings.
+                if (visible) {
+                    currentIndex = fact.enumIndex
                 }
             }
         }

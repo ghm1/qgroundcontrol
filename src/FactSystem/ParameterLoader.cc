@@ -335,12 +335,18 @@ void ParameterLoader::_determineDefaultComponentId(void)
         // the set of parameters. Better than nothing!
 
         _defaultComponentId = -1;
+        int largestCompParamCount = 0;
         foreach(int componentId, _mapParameterName2Variant.keys()) {
-            if (_mapParameterName2Variant[componentId].count() > _defaultComponentId) {
+            int compParamCount = _mapParameterName2Variant[componentId].count();
+            if (compParamCount > largestCompParamCount) {
+                largestCompParamCount = compParamCount;
                 _defaultComponentId = componentId;
             }
         }
-        Q_ASSERT(_defaultComponentId != -1);
+
+        if (_defaultComponentId == -1) {
+            qWarning() << "All parameters missing, unable to determine default componet id";
+        }
     }
 }
 
@@ -349,7 +355,9 @@ int ParameterLoader::_actualComponentId(int componentId)
 {
     if (componentId == FactSystem::defaultComponentId) {
         componentId = _defaultComponentId;
-        Q_ASSERT(componentId != FactSystem::defaultComponentId);
+        if (componentId == FactSystem::defaultComponentId) {
+            qWarning() << "Default component id not set";
+        }
     }
 
     return componentId;
@@ -380,7 +388,7 @@ void ParameterLoader::refreshParametersPrefix(int componentId, const QString& na
     componentId = _actualComponentId(componentId);
     qCDebug(ParameterLoaderLog) << "refreshParametersPrefix (component id:" << componentId << "name:" << namePrefix << ")";
 
-    foreach(QString name, _mapParameterName2Variant[componentId].keys()) {
+    foreach(const QString &name, _mapParameterName2Variant[componentId].keys()) {
         if (name.startsWith(namePrefix)) {
             refreshParameter(componentId, name);
         }
@@ -415,7 +423,7 @@ QStringList ParameterLoader::parameterNames(int componentId)
 {
     QStringList names;
 
-    foreach(QString paramName, _mapParameterName2Variant[_actualComponentId(componentId)].keys()) {
+    foreach(const QString &paramName, _mapParameterName2Variant[_actualComponentId(componentId)].keys()) {
         names << paramName;
     }
 
@@ -425,7 +433,7 @@ QStringList ParameterLoader::parameterNames(int componentId)
 void ParameterLoader::_setupGroupMap(void)
 {
     foreach (int componentId, _mapParameterName2Variant.keys()) {
-        foreach (QString name, _mapParameterName2Variant[componentId].keys()) {
+        foreach (const QString &name, _mapParameterName2Variant[componentId].keys()) {
             Fact* fact = _mapParameterName2Variant[componentId][name].value<Fact*>();
             _mapGroup2ParameterName[componentId][fact->group()] += name;
         }
@@ -471,7 +479,7 @@ void ParameterLoader::_waitingParamTimeout(void)
 
     if (!paramsRequested) {
         foreach(int componentId, _waitingWriteParamNameMap.keys()) {
-            foreach(QString paramName, _waitingWriteParamNameMap[componentId].keys()) {
+            foreach(const QString &paramName, _waitingWriteParamNameMap[componentId].keys()) {
                 paramsRequested = true;
                 _waitingWriteParamNameMap[componentId][paramName]++;   // Bump retry count
                 _writeParameterRaw(componentId, paramName, _autopilot->getFact(FactSystem::ParameterProvider, componentId, paramName)->rawValue());
@@ -486,7 +494,7 @@ void ParameterLoader::_waitingParamTimeout(void)
 
     if (!paramsRequested) {
         foreach(int componentId, _waitingReadParamNameMap.keys()) {
-            foreach(QString paramName, _waitingReadParamNameMap[componentId].keys()) {
+            foreach(const QString &paramName, _waitingReadParamNameMap[componentId].keys()) {
                 paramsRequested = true;
                 _waitingReadParamNameMap[componentId][paramName]++;   // Bump retry count
                 _readParameterRaw(componentId, paramName, -1);
@@ -715,11 +723,11 @@ void ParameterLoader::writeParametersToStream(QTextStream &stream)
     stream << "# MAV ID  COMPONENT ID  PARAM NAME  VALUE (FLOAT)\n";
 
     foreach (int componentId, _mapParameterName2Variant.keys()) {
-        foreach (QString paramName, _mapParameterName2Variant[componentId].keys()) {
+        foreach (const QString &paramName, _mapParameterName2Variant[componentId].keys()) {
             Fact* fact = _mapParameterName2Variant[componentId][paramName].value<Fact*>();
             Q_ASSERT(fact);
 
-            stream << _vehicle->id() << "\t" << componentId << "\t" << paramName << "\t" << fact->valueString() << "\t" << QString("%1").arg(_factTypeToMavType(fact->type())) << "\n";
+            stream << _vehicle->id() << "\t" << componentId << "\t" << paramName << "\t" << fact->rawValueString() << "\t" << QString("%1").arg(_factTypeToMavType(fact->type())) << "\n";
         }
     }
 

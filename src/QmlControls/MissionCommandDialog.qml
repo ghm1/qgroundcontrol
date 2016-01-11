@@ -30,7 +30,11 @@ import QGroundControl.ScreenTools   1.0
 import QGroundControl.Palette       1.0
 
 QGCViewDialog {
+    id: root
+
     property var missionItem
+
+    property var _vehicle: QGroundControl.multiVehicleManager.activeVehicle
 
     QGCPalette { id: qgcPal }
 
@@ -45,10 +49,10 @@ QGCViewDialog {
         anchors.margins:    ScreenTools.defaultFontPixelWidth
         anchors.left:       categoryLabel.right
         anchors.right:      parent.right
-        model:              QGroundControl.missionCommands.categories
+        model:              QGroundControl.missionCommands.categories(_vehicle)
 
         function categorySelected(category) {
-            commandList.model = QGroundControl.missionCommands.getCommandsForCategory(category)
+            commandList.model = QGroundControl.missionCommands.getCommandsForCategory(_vehicle, category)
         }
 
         Component.onCompleted: {
@@ -104,10 +108,9 @@ QGCViewDialog {
                 anchors.fill:   parent
                 onClicked: {
                     missionItem.command = mavCmdInfo.command
-                    accept()
+                    root.reject()
                 }
             }
         }
     } // ListView
-
 } // QGCViewDialog
