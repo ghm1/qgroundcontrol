@@ -961,6 +961,20 @@ void UAS::receiveMessage(mavlink_message_t message)
         }
             break;
 
+        case MAVLINK_MSG_ID_TARGET_LAND_POSITION:
+        {
+            mavlink_target_land_position_t pos;
+            mavlink_msg_target_land_position_decode(&message, &pos);
+        }
+
+        case MAVLINK_MSG_ID_TARGET_LAND_OFFSET:
+        {
+            mavlink_target_land_offset_t pos;
+            mavlink_msg_target_land_offset_decode(&message, &pos);
+        }
+
+            break;
+
         default:
             break;
         }
